@@ -169,10 +169,56 @@ namespace DependencyChecker
         {
             // Parse file content
             var serializer = new XmlSerializer(typeof(Project));
-            var data = (Project)serializer.Deserialize(new XmlTextReader(csprojFile));
+            var data = (Csproj.Project)serializer.Deserialize(new XmlTextReader(csprojFile));
 
             var packageStatuses = new List<PackageStatus>();
 
+
+            // Crawl trough all Item Groups
+            foreach (var itemGroup in data.ItemGroup)
+            {
+                // Crawl trough all PackageReferences
+                if (itemGroup.PackageReference == null)
+                {
+                    continue;
+                }
+                foreach (var package in itemGroup.PackageReference)
+                {
+                    if (_options.CombineProjects)
+                    {
+                        _logger.LogDebug($"Add package to list: {package.Include} which is defined in {csprojFile}");
+                        packageStatuses.Add(new PackageStatus()
+                        {
+                            Id = package.Include,
+                            InstalledVersion = package.Version,
+                            DefinedInFile = csprojFile
+                        });
+                    }
+                    else
+                    {
+                        _logger.LogInformation($"Checking package {package.Include}");
+                        var res = await GetPackageStatus(package.Include, package.Version);
+                        packageStatuses.Add(res);
+                        _logger.LogInformation(string.Empty); // Blank line
+                    }
+                }
+            }
+
+            return packageStatuses;
+        }
+
+        /// <summary>
+        /// Gets the packages from packges configuration.
+        /// </summary>
+        /// <param name="csprojFile">The csproj file.</param>
+        /// <returns>Task&lt;List&lt;PackageStatus&gt;&gt;.</returns>
+        private async Task<List<PackageStatus>> GetPackagesFromUWPCsproj(string csprojFile)
+        {
+            // Parse file content
+            var serializer = new XmlSerializer(typeof(CsprojUWP.Project));
+            var data = (CsprojUWP.Project)serializer.Deserialize(new XmlTextReader(csprojFile));
+
+            var packageStatuses = new List<PackageStatus>();
 
             // Crawl trough all Item Groups
             foreach (var itemGroup in data.ItemGroup)
@@ -441,11 +487,32 @@ namespace DependencyChecker
                         var failed = false;
                         try
                         {
-                            // Probably this is in the wrong format. Try to parse with old csproj format
-                            // Parse file content
-                            var serializer = new XmlSerializer(typeof(CsprojOld.Project));
-                            var data = (CsprojOld.Project)serializer.Deserialize(new XmlTextReader(csprojFile));
-                            _logger.LogInformation("This project type should have referenced NuGet packages with a packages.config. This file wasn't found and therefore no information could be collected.");
+                            //try if it is a UWP project
+                            try
+                            {
+                                var packages = await GetPackagesFromUWPCsproj(file.FullName);
+                                CodeProjects.Add(new CodeProject
+                                {
+                                    Name = file.Name.Replace(file.Extension, string.Empty),
+                                    NuGetFile = file.FullName,
+                                    PackageStatuses = packages
+                                });
+                            }
+                            catch
+                            {
+                                try
+                                {
+                                    // Probably this is in the wrong format. Try to parse with old csproj format
+                                    // Parse file content
+                                    var serializer = new XmlSerializer(typeof(CsprojOld.Project));
+                                    var data = (CsprojOld.Project)serializer.Deserialize(new XmlTextReader(csprojFile));
+                                    _logger.LogInformation("This project type should have referenced NuGet packages with a packages.config. This file wasn't found and therefore no information could be collected.");
+                                }
+                                catch
+                                {
+                                    throw;
+                                }
+                            }                           
                         }
                         catch (Exception exception)
                         {

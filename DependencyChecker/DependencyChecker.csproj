@@ -123,6 +123,9 @@
     <Compile Include="Schema\CsprojOld.cs">
       <DependentUpon>CsprojOld.xsd</DependentUpon>
     </Compile>
+    <Compile Include="Schema\CsprojUWP.cs">
+      <DependentUpon>CsprojUWP.xsd</DependentUpon>
+    </Compile>
     <Compile Include="Schema\Packages_config.cs" />
   </ItemGroup>
   <ItemGroup>
@@ -138,6 +141,7 @@
     <None Include="Schema\CsprojOld.xsd">
       <SubType>Designer</SubType>
     </None>
+    <None Include="Schema\CsprojUWP.xsd" />
     <None Include="Schema\Packages.config.xsd">
       <SubType>Designer</SubType>
     </None>
